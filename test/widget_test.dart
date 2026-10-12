@@ -192,6 +192,71 @@ A[G]mazing [C]grace
       expect(result.songs, 2);
       expect(state.songs.length, 2);
     });
+
+    test('each library shows its own songs; copies go across', () async {
+      final personal = state.songs.length;
+      final song = state.songs.first;
+      state.writableGroups = {'g1'};
+      state.setScope('g1');
+      expect(state.songs, isEmpty);
+      expect(state.canEdit, isTrue);
+      await state.saveSong(Song(title: 'Group song'));
+      expect(state.songs.single.groupId, 'g1');
+      final set = SongSet(name: 'Sunday', items: [SetItem(songId: state.songs.single.id)]);
+      await state.saveSet(set);
+      // Copying the set to the personal library brings its song along, once.
+      final copy = await state.copySet(set, '');
+      await state.copySet(set, '');
+      state.setScope('');
+      expect(state.songs.length, personal + 1);
+      expect(state.song(copy.items.single.songId)!.groupId, '');
+      expect(state.song(song.id), isNotNull);
+      state.setScope('g2');
+      expect(state.canEdit, isFalse);
+    });
+
+    test('changes are queued for the cloud and merged with what comes back', () async {
+      expect(state.pendingChanges, isEmpty); // nothing is tracked before an account is linked
+      await state.markAllPending();
+      expect(state.pendingChanges.length, state.songs.length);
+      await state.clearPending(state.pendingChanges);
+
+      final song = state.songs.first;
+      await state.saveSong(song..title = 'Mine');
+      final sent = state.pendingChanges.single;
+      expect((sent.kind, sent.id, sent.deleted), ('songs', song.id, false));
+
+      // An older cloud version loses to the local edit, a newer one wins.
+      final older = song.modified.subtract(const Duration(minutes: 1)).toIso8601String();
+      await state.applyRemote('', 'songs', [{...song.toJson(), 'title': 'Old', 'modified': older}]);
+      expect(state.song(song.id)!.title, 'Mine');
+      final newer = song.modified.add(const Duration(minutes: 1)).toIso8601String();
+      await state.applyRemote('', 'songs', [{...song.toJson(), 'title': 'Theirs', 'modified': newer}]);
+      expect(state.song(song.id)!.title, 'Theirs');
+      expect(state.pendingChanges, isEmpty);
+
+      // An edit made while the previous one was being sent stays queued.
+      await state.saveSong(state.song(song.id)!..title = 'A');
+      final first = state.pendingChanges.single;
+      await state.saveSong(state.song(song.id)!..title = 'B');
+      await state.clearPending([first]);
+      expect(state.pendingChanges, hasLength(1));
+
+      // Deletions travel as tombstones, in both directions.
+      await state.deleteSongs([song.id]);
+      expect(state.pendingChanges.single.deleted, isTrue);
+      final other = state.songs.first;
+      await state.applyRemote('', 'songs', [{'id': other.id, 'deleted': true, 'modified': newer}]);
+      expect(state.song(other.id), isNull);
+
+      // A group's songs arrive in its library and go when the user leaves it.
+      await state.applyRemote('g1', 'songs', [Song(title: 'Shared').toJson()]);
+      state.setScope('g1');
+      expect(state.songs.single.title, 'Shared');
+      await state.keepGroups({});
+      expect(state.scope, '');
+      expect(state.songs.where((s) => s.title == 'Shared'), isEmpty);
+    });
   });
 
   testWidgets('shows the library and a song on a wide screen', (tester) async {

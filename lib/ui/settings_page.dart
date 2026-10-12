@@ -251,8 +251,9 @@ class SettingsPage extends StatelessWidget {
                     final ok = await confirm(
                       context,
                       tr('Svuotare la libreria?', 'Reset the library?'),
-                      body: tr('Tutti i brani, le scalette e le cartelle verranno eliminati da questo dispositivo.',
-                          'All songs, sets and folders will be deleted from this device.'),
+                      body: tr(
+                          'Tutti i brani, le scalette e le cartelle della libreria personale verranno eliminati da questo dispositivo e, se hai collegato un account, anche dal cloud. I gruppi non vengono toccati.',
+                          'All songs, sets and folders of your personal library will be deleted from this device and, if an account is linked, from the cloud too. Groups are not affected.'),
                       action: tr('Svuota', 'Reset'),
                     );
                     if (ok) await state.resetLibrary();
@@ -263,8 +264,8 @@ class SettingsPage extends StatelessWidget {
                 ListTile(
                   title: const Text('WorshipStudio 1.0.0'),
                   subtitle: Text(tr(
-                      'I dati restano su questo dispositivo, nel browser. Esporta un backup per spostarli o conservarli.',
-                      'Your data stays on this device, in the browser. Export a backup to move or keep it.')),
+                      'I dati sono salvati su questo dispositivo, nel browser. Accedendo con Google dalla libreria vengono anche conservati nel cloud e condivisi con i tuoi gruppi.',
+                      'Your data is saved on this device, in the browser. Sign in with Google from the library to keep it in the cloud too and share it with your groups.')),
                 ),
               ]),
             ),

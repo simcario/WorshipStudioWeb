@@ -204,7 +204,7 @@ class _SongViewState extends State<SongView> {
     if (item != null && item.type == SetItemType.note) {
       body = _NoteBody(item: item);
     } else if (song == null) {
-      body = _Empty(onNew: () => _edit(null), onMenu: widget.onMenu);
+      body = _Empty(onNew: state.canEdit ? () => _edit(null) : null, onMenu: widget.onMenu);
     } else {
       final written = parseKey(song.key);
       final shift = state.transpose - state.capo;
@@ -306,7 +306,8 @@ class _SongViewState extends State<SongView> {
               onPressed: () => showKeyDialog(context, state),
             ),
           ),
-          IconButton(icon: const Icon(Icons.edit_outlined), tooltip: tr('Modifica', 'Edit'), onPressed: () => _edit(song)),
+          if (state.canEdit)
+            IconButton(icon: const Icon(Icons.edit_outlined), tooltip: tr('Modifica', 'Edit'), onPressed: () => _edit(song)),
         ],
         PopupMenuButton<String>(
           tooltip: tr('Altro', 'More'),
@@ -324,7 +325,7 @@ class _SongViewState extends State<SongView> {
             }
           },
           itemBuilder: (_) => [
-            PopupMenuItem(value: 'new', child: _menuRow(Icons.add, tr('Nuovo brano', 'New song'))),
+            if (state.canEdit) PopupMenuItem(value: 'new', child: _menuRow(Icons.add, tr('Nuovo brano', 'New song'))),
             if (song != null) ...[
               PopupMenuItem(
                   value: 'chords',
@@ -428,7 +429,7 @@ class _NoteBody extends StatelessWidget {
 class _Empty extends StatelessWidget {
   const _Empty({required this.onNew, this.onMenu});
 
-  final VoidCallback onNew;
+  final VoidCallback? onNew; // null in a library the user may only read
   final VoidCallback? onMenu;
 
   @override
@@ -446,7 +447,8 @@ class _Empty extends StatelessWidget {
             if (onMenu != null)
               OutlinedButton.icon(
                   onPressed: onMenu, icon: const Icon(Icons.menu), label: Text(tr('Apri la libreria', 'Open library'))),
-            FilledButton.icon(onPressed: onNew, icon: const Icon(Icons.add), label: Text(tr('Nuovo brano', 'New song'))),
+            if (onNew != null)
+              FilledButton.icon(onPressed: onNew, icon: const Icon(Icons.add), label: Text(tr('Nuovo brano', 'New song'))),
           ]),
         ]),
       ),

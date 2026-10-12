@@ -1,0 +1,44 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Personal library: users/{uid}/songs, /sets, /folders.
+    match /users/{uid}/{document=**} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Sync schedule for everyone. Whoever creates it becomes the app
+    // administrator; afterwards only administrators change it.
+    match /config/app {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.admins == [request.auth.uid];
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.admins
+        && request.resource.data.admins.size() > 0;
+    }
+
+    // Groups are created and changed only by the backend (server/index.js).
+    match /groups/{groupId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
+
+      function group() {
+        return get(/databases/$(database)/documents/groups/$(groupId)).data;
+      }
+
+      // groups/{id}/songs and /sets: every member reads; administrators
+      // write, and so do the other members when the group allows it.
+      match /{kind}/{itemId} {
+        allow read: if signedIn() && request.auth.uid in group().memberUids;
+        allow write: if signedIn()
+          && request.auth.uid in group().memberUids
+          && (group().roles[request.auth.uid] == 'admin' || group().membersCanEdit == true);
+      }
+    }
+
+    // Invitations (collection `invites`) are handled by the backend only.
+  }
+}

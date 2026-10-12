@@ -3,7 +3,7 @@
 // Writes the list of built files into build/web/sw.js so the service worker
 // can precache the whole app on first visit (it then works offline straight
 // away), and stamps the cache name with a hash of the build so a new deploy
-// replaces the old cache.
+// replaces the old cache. Then copies the build into server/public.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -41,3 +41,9 @@ fs.writeFileSync(swPath, sw);
 
 const bytes = files.reduce((n, f) => n + fs.statSync(path.join(root, f)).size, 0);
 console.log(`sw.js: ${files.length} files precached (${(bytes / 1048576).toFixed(1)} MB), cache worship-studio-${version}`);
+
+// The backend deployed on Firebase App Hosting serves the app from server/public.
+const publicDir = path.join(__dirname, '..', 'server', 'public');
+fs.rmSync(publicDir, { recursive: true, force: true });
+fs.cpSync(root, publicDir, { recursive: true });
+console.log(`server/public: copy of build/web`);

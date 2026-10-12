@@ -3,6 +3,7 @@ import '../models.dart';
 /// Public-domain demo songs added to a fresh library.
 List<Song> seedSongs() => [
       Song(
+        id: 'demo-1', // fixed, so two devices of one account share them
         title: 'Amazing Grace',
         artist: 'John Newton',
         key: 'G',
@@ -39,6 +40,7 @@ Than [Em]when we'd [D]first be[G]gun
 ''',
       ),
       Song(
+        id: 'demo-2', // fixed, so two devices of one account share them
         title: 'Holy, Holy, Holy',
         artist: 'Reginald Heber / John B. Dykes',
         key: 'D',

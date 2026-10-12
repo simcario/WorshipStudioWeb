@@ -2,19 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:sembast_web/sembast_web.dart';
 
 import 'data/app_state.dart';
+import 'data/cloud.dart';
 import 'l10n.dart';
 import 'ui/home_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final state = await AppState.open(databaseFactoryWeb);
-  runApp(WorshipStudioApp(state: state));
+  final cloud = Cloud(state);
+  runApp(WorshipStudioApp(state: state, cloud: cloud));
+  // The library is on the device: the app does not wait for the cloud.
+  cloud.init();
 }
 
 class WorshipStudioApp extends StatelessWidget {
-  const WorshipStudioApp({super.key, required this.state});
+  const WorshipStudioApp({super.key, required this.state, this.cloud});
 
   final AppState state;
+  final Cloud? cloud; // absent in tests
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +42,7 @@ class WorshipStudioApp extends StatelessWidget {
             'dark' => ThemeMode.dark,
             _ => ThemeMode.system,
           },
-          home: HomePage(state: state),
+          home: HomePage(state: state, cloud: cloud),
         );
       },
     );

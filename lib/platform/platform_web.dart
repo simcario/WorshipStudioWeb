@@ -60,3 +60,6 @@ Future<void> setWakeLock(bool on) async {
 }
 
 bool get isStandalone => web.window.matchMedia('(display-mode: standalone)').matches;
+
+/// Opens a link, or the mail client for a `mailto:` one.
+void openUrl(String url) => web.window.open(url, '_blank');

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/app_state.dart';
+import '../data/cloud.dart';
 import 'sidebar.dart';
 import 'song_view.dart';
 
@@ -8,9 +9,10 @@ import 'song_view.dart';
 const wideBreakpoint = 900.0;
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key, required this.state});
+  const HomePage({super.key, required this.state, this.cloud});
 
   final AppState state;
+  final Cloud? cloud;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -35,7 +37,7 @@ class _HomePageState extends State<HomePage> {
         return Scaffold(
           body: Row(children: [
             if (!_fullscreen) ...[
-              SizedBox(width: 360, child: Sidebar(state: state)),
+              SizedBox(width: 360, child: Sidebar(state: state, cloud: widget.cloud)),
               const VerticalDivider(width: 1),
             ],
             Expanded(child: view),
@@ -46,7 +48,7 @@ class _HomePageState extends State<HomePage> {
         key: _scaffold,
         drawer: Drawer(
           width: box.maxWidth < 420 ? box.maxWidth * 0.9 : 380,
-          child: Sidebar(state: state, onPicked: () => _scaffold.currentState?.closeDrawer()),
+          child: Sidebar(state: state, cloud: widget.cloud, onPicked: () => _scaffold.currentState?.closeDrawer()),
         ),
         body: view,
       );

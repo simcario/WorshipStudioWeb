@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../data/app_state.dart';
+import '../data/cloud.dart';
 import '../l10n.dart';
 import '../models.dart';
 import '../music/transpose.dart';
 import '../platform/platform.dart';
+import 'cloud_page.dart';
 import 'import_ui.dart';
 import 'settings_page.dart';
 import 'song_editor.dart';
@@ -14,9 +16,10 @@ import 'song_editor.dart';
 /// Library panel: songs and sets. Sits beside the song on wide screens and
 /// in a drawer on narrow ones.
 class Sidebar extends StatefulWidget {
-  const Sidebar({super.key, required this.state, this.onPicked});
+  const Sidebar({super.key, required this.state, this.cloud, this.onPicked});
 
   final AppState state;
+  final Cloud? cloud;
 
   /// Called after something was chosen for display (closes the drawer).
   final VoidCallback? onPicked;
@@ -38,12 +41,14 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
+    final cloud = widget.cloud;
     return ListenableBuilder(
-      listenable: state,
+      listenable: Listenable.merge([state, cloud]),
       builder: (context, _) => Material(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
         child: SafeArea(
           child: Column(children: [
+            if (cloud != null) _LibraryBar(state: state, cloud: cloud),
             Row(children: [
               Expanded(
                 child: TabBar(controller: _tabs, tabs: [
@@ -60,11 +65,12 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
             ]),
             Expanded(
               child: TabBarView(controller: _tabs, children: [
-                _SongsTab(state: state, onPicked: widget.onPicked),
-                state.set(_openSet) == null
+                _SongsTab(state: state, cloud: cloud, onPicked: widget.onPicked),
+                state.set(_openSet)?.groupId != state.scope
                     ? _SetsList(state: state, onOpen: (id) => setState(() => _openSet = id))
                     : _SetDetail(
                         state: state,
+                        cloud: cloud,
                         set: state.set(_openSet)!,
                         onBack: () => setState(() => _openSet = null),
                         onPicked: widget.onPicked,
@@ -78,13 +84,103 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   }
 }
 
+/// Shows which library is open (personal or a group's) and leads to the
+/// account page.
+class _LibraryBar extends StatelessWidget {
+  const _LibraryBar({required this.state, required this.cloud});
+
+  final AppState state;
+  final Cloud cloud;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final name = cloud.group(state.scope)?.name ?? tr('Libreria personale', 'Personal library');
+    final label = Row(children: [
+      Icon(state.scope.isEmpty ? Icons.person_outline : Icons.groups_outlined, size: 20),
+      const SizedBox(width: 8),
+      Flexible(
+        child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall),
+      ),
+      if (cloud.groups.isNotEmpty) const Icon(Icons.arrow_drop_down),
+      if (!state.canEdit)
+        Tooltip(
+          message: tr('Sola lettura', 'Read only'),
+          child: Icon(Icons.lock_outline, size: 16, color: scheme.onSurfaceVariant),
+        ),
+    ]);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 0),
+      child: Row(children: [
+        Expanded(
+          child: cloud.groups.isEmpty
+              ? label
+              : PopupMenuButton<String>(
+                  tooltip: tr('Cambia libreria', 'Switch library'),
+                  initialValue: state.scope,
+                  onSelected: state.setScope,
+                  itemBuilder: (_) => [
+                    PopupMenuItem(value: '', child: Text(tr('Libreria personale', 'Personal library'))),
+                    for (final g in cloud.groups) PopupMenuItem(value: g.id, child: Text(g.name)),
+                  ],
+                  child: Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: label),
+                ),
+        ),
+        IconButton(
+          tooltip: tr('Account e gruppi', 'Account and groups'),
+          onPressed: () =>
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => CloudPage(state: state, cloud: cloud))),
+          icon: Badge(
+            isLabelVisible: cloud.invites.isNotEmpty,
+            label: Text('${cloud.invites.length}'),
+            child: cloud.syncing
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : Icon(cloud.user == null
+                    ? Icons.account_circle_outlined
+                    : cloud.lastError == null
+                        ? Icons.cloud_done_outlined
+                        : Icons.sync_problem),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Asks which other library to copy something into: the personal one or a
+/// group the user may change. Null when cancelled or there is none.
+Future<String?> _pickLibrary(BuildContext context, AppState state, Cloud? cloud) {
+  final targets = [
+    if (state.scope.isNotEmpty) ('', tr('Libreria personale', 'Personal library')),
+    for (final g in cloud?.groups ?? const <Group>[])
+      if (g.id != state.scope && state.writableGroups.contains(g.id)) (g.id, g.name),
+  ];
+  return showDialog<String>(
+    context: context,
+    builder: (context) => SimpleDialog(
+      title: Text(tr('Copia in…', 'Copy to…')),
+      children: [
+        if (targets.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(tr('Crea un gruppo, o chiedi di poter modificare uno di cui fai parte, per condividere brani e scalette.',
+                'Create a group, or ask to edit one you belong to, to share songs and sets.')),
+          ),
+        for (final (id, name) in targets)
+          SimpleDialogOption(onPressed: () => Navigator.pop(context, id), child: Text(name)),
+      ],
+    ),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Songs
 
 class _SongsTab extends StatefulWidget {
-  const _SongsTab({required this.state, this.onPicked});
+  const _SongsTab({required this.state, this.cloud, this.onPicked});
 
   final AppState state;
+  final Cloud? cloud;
   final VoidCallback? onPicked;
 
   @override
@@ -146,6 +242,14 @@ class _SongsTabState extends State<_SongsTab> with AutomaticKeepAliveClientMixin
     setState(_selected.clear);
     ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(tr('Aggiunto a "${set.name}"', 'Added to "${set.name}"'))));
+  }
+
+  Future<void> _copy(Song song) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final target = await _pickLibrary(context, state, widget.cloud);
+    if (target == null) return;
+    await state.copySong(song, target);
+    messenger.showSnackBar(SnackBar(content: Text(tr('"${song.title}" copiato', '"${song.title}" copied'))));
   }
 
   Future<void> _delete(List<String> ids) async {
@@ -237,7 +341,11 @@ class _SongsTabState extends State<_SongsTab> with AutomaticKeepAliveClientMixin
     final songs = state.search(query: _query.text, folderId: _folder, tag: _tag);
     final folders = state.folders;
     final tags = state.allTags;
-    _selected.removeWhere((id) => state.song(id) == null);
+    final canEdit = state.canEdit;
+    // The library on screen may have changed.
+    if (!folders.any((f) => f.id == _folder)) _folder = null;
+    if (!tags.contains(_tag)) _tag = null;
+    _selected.removeWhere((id) => state.song(id)?.groupId != state.scope);
 
     return Column(children: [
       Padding(
@@ -382,6 +490,8 @@ class _SongsTabState extends State<_SongsTab> with AutomaticKeepAliveClientMixin
                               _folders(s);
                             case 'select':
                               setState(() => _selected.add(s.id));
+                            case 'copy':
+                              _copy(s);
                             case 'edit':
                               Navigator.of(context)
                                   .push(MaterialPageRoute(builder: (_) => SongEditor(state: state, song: s)));
@@ -390,15 +500,18 @@ class _SongsTabState extends State<_SongsTab> with AutomaticKeepAliveClientMixin
                           }
                         },
                         itemBuilder: (_) => [
-                          PopupMenuItem(value: 'set', child: Text(tr('Aggiungi alla scaletta…', 'Add to set…'))),
-                          PopupMenuItem(value: 'folders', child: Text(tr('Cartelle…', 'Folders…'))),
-                          PopupMenuItem(value: 'edit', child: Text(tr('Modifica', 'Edit'))),
-                          PopupMenuItem(value: 'select', child: Text(tr('Seleziona', 'Select'))),
-                          PopupMenuItem(value: 'delete', child: Text(tr('Elimina', 'Delete'))),
+                          if (canEdit) PopupMenuItem(value: 'set', child: Text(tr('Aggiungi alla scaletta…', 'Add to set…'))),
+                          if (state.scope.isEmpty) PopupMenuItem(value: 'folders', child: Text(tr('Cartelle…', 'Folders…'))),
+                          if (widget.cloud != null) PopupMenuItem(value: 'copy', child: Text(tr('Copia in…', 'Copy to…'))),
+                          if (canEdit) ...[
+                            PopupMenuItem(value: 'edit', child: Text(tr('Modifica', 'Edit'))),
+                            PopupMenuItem(value: 'select', child: Text(tr('Seleziona', 'Select'))),
+                            PopupMenuItem(value: 'delete', child: Text(tr('Elimina', 'Delete'))),
+                          ],
                         ],
                       ),
                     ]),
-                    onLongPress: () => setState(() => _selected.add(s.id)),
+                    onLongPress: canEdit ? () => setState(() => _selected.add(s.id)) : null,
                     onTap: () {
                       if (_selected.isNotEmpty) {
                         setState(() => _selected.contains(s.id) ? _selected.remove(s.id) : _selected.add(s.id));
@@ -411,8 +524,8 @@ class _SongsTabState extends State<_SongsTab> with AutomaticKeepAliveClientMixin
                 },
               ),
       ),
-      const Divider(height: 1),
-      Padding(
+      if (canEdit) const Divider(height: 1),
+      if (canEdit) Padding(
         padding: const EdgeInsets.all(8),
         child: Row(children: [
           Expanded(
@@ -426,7 +539,7 @@ class _SongsTabState extends State<_SongsTab> with AutomaticKeepAliveClientMixin
                 icon: const Icon(Icons.upload_file),
                 label: Text(tr('Importa', 'Import'))),
           ),
-          IconButton(
+          if (state.scope.isEmpty) IconButton(
             icon: const Icon(Icons.create_new_folder_outlined),
             tooltip: tr('Nuova cartella', 'New folder'),
             onPressed: () async {
@@ -492,8 +605,8 @@ class _SetsList extends StatelessWidget {
                 },
               ),
       ),
-      const Divider(height: 1),
-      Padding(
+      if (state.canEdit) const Divider(height: 1),
+      if (state.canEdit) Padding(
         padding: const EdgeInsets.all(8),
         child: SizedBox(
           width: double.infinity,
@@ -508,9 +621,10 @@ class _SetsList extends StatelessWidget {
 }
 
 class _SetDetail extends StatelessWidget {
-  const _SetDetail({required this.state, required this.set, required this.onBack, this.onPicked});
+  const _SetDetail({required this.state, this.cloud, required this.set, required this.onBack, this.onPicked});
 
   final AppState state;
+  final Cloud? cloud;
   final SongSet set;
   final VoidCallback onBack;
   final VoidCallback? onPicked;
@@ -601,6 +715,7 @@ class _SetDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final total = _totalSeconds;
+    final canEdit = state.canEdit;
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
@@ -608,7 +723,7 @@ class _SetDetail extends StatelessWidget {
           IconButton(icon: const Icon(Icons.arrow_back), tooltip: tr('Tutte le scalette', 'All sets'), onPressed: onBack),
           Expanded(
             child: InkWell(
-              onTap: () async {
+              onTap: !canEdit ? null : () async {
                 final name = await promptText(context, tr('Nome della scaletta', 'Set name'), initial: set.name);
                 if (name != null && name.isNotEmpty) await state.saveSet(set..name = name);
               },
@@ -633,6 +748,13 @@ class _SetDetail extends StatelessWidget {
                   onBack();
                 case 'export':
                   _export();
+                case 'copy':
+                  final messenger = ScaffoldMessenger.of(context);
+                  final target = await _pickLibrary(context, state, cloud);
+                  if (target == null) return;
+                  await state.copySet(set, target);
+                  messenger.showSnackBar(
+                      SnackBar(content: Text(tr('"${set.name}" copiata con i suoi brani', '"${set.name}" copied with its songs'))));
                 case 'delete':
                   if (await confirm(context, tr('Eliminare "${set.name}"?', 'Delete "${set.name}"?'))) {
                     await state.deleteSet(set.id);
@@ -641,11 +763,14 @@ class _SetDetail extends StatelessWidget {
               }
             },
             itemBuilder: (_) => [
-              PopupMenuItem(value: 'date', child: Text(tr('Cambia data', 'Change date'))),
-              PopupMenuItem(value: 'pin', child: Text(set.pinned ? tr('Rimuovi fissaggio', 'Unpin') : tr('Fissa in alto', 'Pin'))),
-              PopupMenuItem(value: 'duplicate', child: Text(tr('Duplica', 'Duplicate'))),
+              if (canEdit) ...[
+                PopupMenuItem(value: 'date', child: Text(tr('Cambia data', 'Change date'))),
+                PopupMenuItem(value: 'pin', child: Text(set.pinned ? tr('Rimuovi fissaggio', 'Unpin') : tr('Fissa in alto', 'Pin'))),
+                PopupMenuItem(value: 'duplicate', child: Text(tr('Duplica', 'Duplicate'))),
+              ],
               PopupMenuItem(value: 'export', child: Text(tr('Esporta / condividi', 'Export / share'))),
-              PopupMenuItem(value: 'delete', child: Text(tr('Elimina', 'Delete'))),
+              if (cloud != null) PopupMenuItem(value: 'copy', child: Text(tr('Copia in…', 'Copy to…'))),
+              if (canEdit) PopupMenuItem(value: 'delete', child: Text(tr('Elimina', 'Delete'))),
             ],
           ),
         ]),
@@ -677,7 +802,7 @@ class _SetDetail extends StatelessWidget {
                     dense: true,
                     selected: state.setId == set.id && state.setIndex == i,
                     selectedTileColor: scheme.primaryContainer.withValues(alpha: 0.5),
-                    leading: ReorderableDragStartListener(index: i, child: const Icon(Icons.drag_handle)),
+                    leading: canEdit ? ReorderableDragStartListener(index: i, child: const Icon(Icons.drag_handle)) : null,
                     title: Text(
                       isNote
                           ? '$number${item.title.isEmpty ? tr('Nota', 'Note') : item.title}'
@@ -696,7 +821,7 @@ class _SetDetail extends StatelessWidget {
                             ].join('  ·  '),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
-                    trailing: PopupMenuButton<String>(
+                    trailing: !canEdit ? null : PopupMenuButton<String>(
                       padding: EdgeInsets.zero,
                       onSelected: (v) {
                         switch (v) {
@@ -729,20 +854,23 @@ class _SetDetail extends StatelessWidget {
       Padding(
         padding: const EdgeInsets.all(8),
         child: Row(children: [
-          Expanded(
-            child: FilledButton.tonalIcon(
-                onPressed: () => _addSongs(context),
-                icon: const Icon(Icons.playlist_add),
-                label: Text(tr('Brani', 'Songs'))),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: OutlinedButton.icon(
-                onPressed: () => _addNote(context),
-                icon: const Icon(Icons.sticky_note_2_outlined),
-                label: Text(tr('Nota', 'Note'))),
-          ),
-          const SizedBox(width: 8),
+          if (canEdit) ...[
+            Expanded(
+              child: FilledButton.tonalIcon(
+                  onPressed: () => _addSongs(context),
+                  icon: const Icon(Icons.playlist_add),
+                  label: Text(tr('Brani', 'Songs'))),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                  onPressed: () => _addNote(context),
+                  icon: const Icon(Icons.sticky_note_2_outlined),
+                  label: Text(tr('Nota', 'Note'))),
+            ),
+            const SizedBox(width: 8),
+          ] else
+            const Spacer(),
           IconButton.filled(
             icon: const Icon(Icons.play_arrow),
             tooltip: tr('Avvia scaletta', 'Start set'),

@@ -9,3 +9,5 @@ Future<void> setFullscreen(bool on) async {}
 Future<void> setWakeLock(bool on) async {}
 
 bool get isStandalone => false;
+
+void openUrl(String url) {}

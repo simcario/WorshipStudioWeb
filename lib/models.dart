@@ -34,6 +34,7 @@ class Song {
   int songNumber;
   double zoom;
   DateTime modified;
+  String groupId; // '' for the personal library
 
   Song({
     String? id,
@@ -56,6 +57,7 @@ class Song {
     this.songNumber = 0,
     this.zoom = 1,
     DateTime? modified,
+    this.groupId = '',
   })  : id = id ?? newId(),
         tags = tags ?? [],
         folderIds = folderIds ?? [],
@@ -82,6 +84,7 @@ class Song {
         songNumber: (j['songNumber'] as num?)?.toInt() ?? 0,
         zoom: (j['zoom'] as num?)?.toDouble() ?? 1,
         modified: DateTime.tryParse(j['modified'] as String? ?? ''),
+        groupId: j['groupId'] as String? ?? '',
       );
 
   Map<String, Object?> toJson() => {
@@ -105,6 +108,7 @@ class Song {
         'songNumber': songNumber,
         'zoom': zoom,
         'modified': modified.toIso8601String(),
+        'groupId': groupId,
       };
 
   Song copy() => Song.fromJson(toJson());
@@ -163,8 +167,16 @@ class SongSet {
   bool pinned;
   List<SetItem> items;
   DateTime modified;
+  String groupId; // '' for the personal library
 
-  SongSet({String? id, this.name = '', DateTime? date, this.pinned = false, List<SetItem>? items, DateTime? modified})
+  SongSet(
+      {String? id,
+      this.name = '',
+      DateTime? date,
+      this.pinned = false,
+      List<SetItem>? items,
+      DateTime? modified,
+      this.groupId = ''})
       : id = id ?? newId(),
         date = date ?? DateTime.now(),
         items = items ?? [],
@@ -180,6 +192,7 @@ class SongSet {
             SetItem.fromJson(Map<String, Object?>.from(i as Map))
         ],
         modified: DateTime.tryParse(j['modified'] as String? ?? ''),
+        groupId: j['groupId'] as String? ?? '',
       );
 
   Map<String, Object?> toJson() => {
@@ -189,6 +202,7 @@ class SongSet {
         'pinned': pinned,
         'items': [for (final i in items) i.toJson()],
         'modified': modified.toIso8601String(),
+        'groupId': groupId,
       };
 }
 

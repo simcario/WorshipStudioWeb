@@ -1,0 +1,26 @@
+# Firebase App Hosting configuration of the WorshipStudio backend.
+runConfig:
+  minInstances: 0
+  maxInstances: 2
+  cpu: 1
+  memoryMiB: 512
+
+# Invitation mails need an SMTP account. Until one is configured the group
+# administrator gets the invitation text to send by hand.
+# Store the password with:  firebase apphosting:secrets:set smtp-pass
+# then uncomment and fill in:
+#
+# env:
+#   - variable: SMTP_HOST
+#     value: smtp.gmail.com
+#   - variable: SMTP_PORT
+#     value: "465"
+#   - variable: SMTP_USER
+#     value: someone@example.com
+#   - variable: SMTP_PASS
+#     secret: smtp-pass
+#   - variable: MAIL_FROM
+#     value: WorshipStudio <someone@example.com>
+#   # Address written in the mails; defaults to the one the request came to.
+#   - variable: APP_URL
+#     value: https://example.com

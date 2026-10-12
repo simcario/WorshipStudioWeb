@@ -6,7 +6,7 @@
 // Navigations are network-first (so a new deploy is picked up when online)
 // with the cached shell as fallback. Everything else is served from cache
 // and refreshed in the background, including the fonts Flutter fetches from
-// fonts.gstatic.com.
+// fonts.gstatic.com and the Firebase SDK loaded from www.gstatic.com.
 
 const CACHE = 'worship-studio-v1';
 const SHELL = ['./', 'index.html', 'manifest.json', 'flutter_bootstrap.js', 'main.dart.js', 'favicon.png',
@@ -45,6 +45,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   const sameOrigin = url.origin === self.location.origin;
   if (!sameOrigin && !RUNTIME_ORIGINS.includes(url.origin)) return;
+  if (sameOrigin && url.pathname.startsWith('/api/')) return; // backend calls are never cached
 
   if (request.mode === 'navigate') {
     event.respondWith(
