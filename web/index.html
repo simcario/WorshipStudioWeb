@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Brani con accordi, scalette e strumenti per suonare dal vivo. Funziona offline.">
+  <meta name="theme-color" content="#3F6FD9">
+
+  <!-- iOS -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="WorshipStudio">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+  <title>WorshipStudio</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    html, body { height: 100%; margin: 0; background: #F6F7FB; }
+    @media (prefers-color-scheme: dark) { html, body { background: #121318; } }
+    #splash {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      font: 600 18px system-ui, sans-serif; color: #3F6FD9;
+    }
+  </style>
+</head>
+<body>
+  <div id="splash">WorshipStudio</div>
+  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // The splash is removed once Flutter has painted its first frame.
+    window.addEventListener('flutter-first-frame', function () {
+      var s = document.getElementById('splash');
+      if (s) s.remove();
+    });
+    // Offline support: see sw.js.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js');
+      });
+    }
+  </script>
+</body>
+</html>
